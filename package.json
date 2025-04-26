@@ -1,14 +1,16 @@
 {
   "name": "uakino-stremio-addon",
   "version": "1.0.0",
-  "description": "Stremio add-on for uakino.me",
-  "main": "stremio-uakino-addon.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node stremio-uakino-addon.js"
+    "start": "node index.js"
   },
   "dependencies": {
-    "stremio-addon-sdk": "^1.6.10",
-    "axios": "^1.0.0",
+    "stremio-addon-sdk": "^1.5.7",
+    "node-fetch": "^2.6.9",
     "cheerio": "^1.0.0-rc.12"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
