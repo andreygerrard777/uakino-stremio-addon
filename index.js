@@ -1,75 +1,59 @@
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
-const axios = require('axios');
+const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 
-const manifest = {
-  id: 'org.uakino.stremio',
-  version: '1.0.0',
-  name: 'Uakino Add-on',
-  description: 'Stremio add-on for uakino.me',
-  resources: ['catalog', 'meta', 'stream'],
-  types: ['movie', 'series'],
-  catalogs: [
-    { type: 'movie', id: 'uakino_movies', name: 'Uakino Movies' },
-    { type: 'series', id: 'uakino_series', name: 'Uakino Series' }
-  ],
-  idPrefixes: ['uakino:']
-};
-
-const builder = new addonBuilder(manifest);
-
-// Fetch catalog items from uakino.me
-builder.defineCatalogHandler(async ({ type }) => {
-  const url = 'https://uakino.me/';
-  const response = await axios.get(url);
-  const $ = cheerio.load(response.data);
-  const metas = [];
-
-  $('.movie-list .movie-item').each((i, el) => {
-    const title = $(el).find('.caption').text().trim();
-    const link = $(el).find('a').attr('href');
-    const poster = $(el).find('img').attr('src');
-    const metaId = `uakino:${encodeURIComponent(link)}`;
-    metas.push({ id: metaId, name: title, poster, type });
-  });
-
-  return { metas, cacheMaxAge: 3600 };
+const builder = new addonBuilder({
+    id: 'org.uakino.addon',
+    version: '1.0.0',
+    name: 'UAkino.me',
+    description: 'Перегляд фільмів з UAkino.me в Stremio',
+    resources: ['catalog', 'stream'],
+    types: ['movie'],
+    catalogs: [{ type: 'movie', id: 'uakino-catalog', name: 'UAkino.me', extra: [{ name: 'search' }] }],
 });
 
-// Fetch metadata for a given item
-builder.defineMetaHandler(async ({ type, id }) => {
-  const link = decodeURIComponent(id.replace('uakino:', ''));
-  const response = await axios.get(`https://uakino.me${link}`);
-  const $ = cheerio.load(response.data);
+builder.defineCatalogHandler(async ({ extra }) => {
+    let searchUrl = 'https://uakino.me/filmy/';
+    if (extra.search) {
+        searchUrl += `?do=search&subaction=search&story=${encodeURIComponent(extra.search)}`;
+    }
 
-  const name = $('.movie-title').text().trim();
-  const poster = $('.movie-cover img').attr('src');
-  const description = $('.description').text().trim();
+    const response = await fetch(searchUrl);
+    const body = await response.text();
+    const $ = cheerio.load(body);
 
-  return { meta: { id, type, name, poster, description } };
-});
+    const results = [];
+    $('.movie-item').each((i, el) => {
+        const elem = $(el);
+        const name = elem.find('.movie-title').text().trim();
+        const idMatch = elem.find('a').attr('href').match(/\/(\d+)-/);
+        const id = idMatch ? idMatch[1] : null;
+        const poster = elem.find('img').attr('src');
 
-// Fetch streams for a given item
-builder.defineStreamHandler(async ({ id }) => {
-  const link = decodeURIComponent(id.replace('uakino:', ''));
-  const response = await axios.get(`https://uakino.me${link}`);
-  const $ = cheerio.load(response.data);
-
-  const streams = [];
-  $('iframe').each((i, el) => {
-    const src = $(el).attr('src');
-    streams.push({
-      title: `Stream ${i + 1}`,
-      url: src,
-      externalUrl: src,
-      isNative: false
+        if (id) {
+            results.push({
+                id,
+                type: 'movie',
+                name,
+                poster,
+            });
+        }
     });
-  });
 
-  return { streams };
+    return { metas: results };
 });
 
-// Serve the add-on
-serveHTTP(builder.getInterface(), { port: 7000 });
+builder.defineStreamHandler(async ({ id }) => {
+    const filmUrl = `https://uakino.me/${id}-film.html`;
+    const response = await fetch(filmUrl);
+    const body = await response.text();
+    const $ = cheerio.load(body);
 
-console.log('Uakino Stremio add-on running on port 7000');
+    const videoSrc = $('iframe').attr('src');
+
+    return {
+        streams: videoSrc ? [{ url: videoSrc }] : [],
+    };
+});
+
+serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
