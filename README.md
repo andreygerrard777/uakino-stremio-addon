@@ -1,19 +1,8 @@
-# UAKINO Stremio Add-on
+# Uakino Stremio Add-on
 
-Неофіційний Stremio add-on для перегляду україномовних фільмів та серіалів з uakino.me.
+Цей репозиторій містить Stremio add-on, що отримує фільми та серіали з сайту uakino.me.
 
-## Як запустити
+## Встановлення
 
-1. Встановити залежності:
-
-```
+```bash
 npm install
-```
-
-2. Запустити локально:
-
-```
-node index.js
-```
-
-3. Або залити на Render / Replit і використовувати URL до manifest.json у Stremio.
