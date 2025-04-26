@@ -4,7 +4,7 @@ const cheerio = require('cheerio');
 
 const builder = new addonBuilder({
     id: 'org.uakino.addon',
-    version: '1.0.0',
+    version: '1.0.1',
     name: 'UAkino.me',
     description: 'Перегляд фільмів з UAkino.me в Stremio',
     resources: ['catalog', 'stream'],
@@ -18,42 +18,56 @@ builder.defineCatalogHandler(async ({ extra }) => {
         searchUrl += `?do=search&subaction=search&story=${encodeURIComponent(extra.search)}`;
     }
 
-    const response = await fetch(searchUrl);
-    const body = await response.text();
-    const $ = cheerio.load(body);
+    try {
+        const response = await fetch(searchUrl);
+        const body = await response.text();
+        const $ = cheerio.load(body);
 
-    const results = [];
-    $('.movie-item').each((i, el) => {
-        const elem = $(el);
-        const name = elem.find('.movie-title').text().trim();
-        const idMatch = elem.find('a').attr('href').match(/\/(\d+)-/);
-        const id = idMatch ? idMatch[1] : null;
-        const poster = elem.find('img').attr('src');
+        const results = [];
 
-        if (id) {
-            results.push({
-                id,
-                type: 'movie',
-                name,
-                poster,
-            });
-        }
-    });
+        $('.movie-item').each((i, el) => {
+            const elem = $(el);
+            const name = elem.find('.movie-title').text().trim();
+            const href = elem.find('a').attr('href');
+            const idMatch = href && href.match(/\/(\d+)-/);
+            const id = idMatch ? idMatch[1] : null;
+            const poster = elem.find('img').attr('src');
 
-    return { metas: results };
+            if (id && name && poster) {
+                results.push({
+                    id,
+                    type: 'movie',
+                    name,
+                    poster,
+                });
+            }
+        });
+
+        return { metas: results };
+
+    } catch (error) {
+        console.error('Error fetching catalog:', error);
+        return { metas: [] };
+    }
 });
 
 builder.defineStreamHandler(async ({ id }) => {
     const filmUrl = `https://uakino.me/${id}-film.html`;
-    const response = await fetch(filmUrl);
-    const body = await response.text();
-    const $ = cheerio.load(body);
+    try {
+        const response = await fetch(filmUrl);
+        const body = await response.text();
+        const $ = cheerio.load(body);
 
-    const videoSrc = $('iframe').attr('src');
+        const videoSrc = $('iframe').attr('src');
 
-    return {
-        streams: videoSrc ? [{ url: videoSrc }] : [],
-    };
+        return {
+            streams: videoSrc ? [{ url: videoSrc }] : [],
+        };
+
+    } catch (error) {
+        console.error('Error fetching stream:', error);
+        return { streams: [] };
+    }
 });
 
 serveHTTP(builder.getInterface(), { port: process.env.PORT || 7000 });
